@@ -28,6 +28,11 @@ basicstyle=\ttfamily\scriptsize
 \usepackage{float}
 \usepackage{amsmath}
 
+\usepackage{csquotes}
+\usepackage[natbib=true,backend=bibtex,maxbibnames=99]{biblatex}  % kompilacja bibliografii BibTeXem
+%\usepackage[natbib=true,backend=biber,maxbibnames=99]{biblatex}  % kompilacja bibliografii Biberem
+\bibliography{biblio}
+
 \title{
 \includegraphics[scale=0.7]{img/polsl.png}\\
 \vspace*{1cm}
@@ -52,6 +57,7 @@ i Informatyki}\\
 
 \newpage
 \input{chapters/01.tex} % informacje redakcyjne
+Test \cite{bib:internet}
 
 \newpage
 \input{chapters/02.tex} % informacje redakcyjne
@@ -65,8 +71,8 @@ i Informatyki}\\
 \input{chapters/04.tex} % informacje redakcyjne
 
 
-\newpage
-\input{chapters/05.tex} % informacje redakcyjne
+%\newpage
+%\input{chapters/05.tex} % informacje redakcyjne
 
 
 \newpage
@@ -74,5 +80,20 @@ i Informatyki}\\
 
 \newpage
 \input{chapters/07.tex} % informacje redakcyjne
+
+\newpage
+\cleardoublepage
+\phantomsection
+%\bibliographystyle{plplain}  % bibtex
+%\bibliography{biblio} % bibtex
+\addcontentsline{toc}{chapter}{Bibliografia}
+\printbibliography           % biblatex
+
+\newpage
+\listoffigures
+\addcontentsline{toc}{chapter}{Spis rysunków}
+\newpage
+\listoftables
+\addcontentsline{toc}{chapter}{Spis tabel}
 
 \end{document}

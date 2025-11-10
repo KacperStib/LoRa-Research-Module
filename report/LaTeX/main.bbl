@@ -1,0 +1,51 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.2 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\datalist[entry]{nty/global//global/global}
+  \entry{bib:internet}{online}{}
+    \name{author}{2}{}{%
+      {{hash=NI}{%
+         family={Nazwisko},
+         familyi={N\bibinitperiod},
+         given={Imię},
+         giveni={I\bibinitperiod},
+      }}%
+      {{hash=NI}{%
+         family={Nazwisko},
+         familyi={N\bibinitperiod},
+         given={Imię},
+         giveni={I\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{NINI1}
+    \strng{fullhash}{NINI1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{N}
+    \field{sortinithash}{N}
+    \field{title}{Tytuł strony internetowej}
+    \verb{url}
+    \verb http://gdzies/w/internecie/internet.html
+    \endverb
+    \field{year}{2021}
+    \field{urlday}{30}
+    \field{urlmonth}{09}
+    \field{urlyear}{2021}
+  \endentry
+\enddatalist
+\endinput
