@@ -1,0 +1,24 @@
+#define I2C_SDA 2
+#define I2C_SCL 3
+
+#define GPS_RX 17
+#define GPS_TX 16
+
+#define SPI_MISO 6
+#define SPI_MOSI 0
+#define SPI_SCK 7
+#define LORA_CS 19
+#define SD_CS 1
+
+#define LORA_RST 20
+#define LORA_IO 21
+
+#define UART_RX 22
+#define UART_TX 23
+
+#define LED_PIN 15
+
+#define OLED_ADDR 0x3c 
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define OLED_RESET -1   //   QT-PY / XIAO
