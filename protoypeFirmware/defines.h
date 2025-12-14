@@ -1,8 +1,8 @@
 #define I2C_SDA 2
 #define I2C_SCL 3
 
-#define GPS_RX 17
-#define GPS_TX 16
+#define GPS_RX 10
+#define GPS_TX 11
 
 #define SPI_MISO 6
 #define SPI_MOSI 0
