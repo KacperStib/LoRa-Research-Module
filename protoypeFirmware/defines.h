@@ -4,11 +4,11 @@
 #define GPS_RX 10
 #define GPS_TX 11
 
-#define SPI_MISO 6
-#define SPI_MOSI 0
-#define SPI_SCK 7
-#define LORA_CS 19
-#define SD_CS 1
+#define SPI_MISO 21
+#define SPI_MOSI 19
+#define SPI_SCK 20
+#define LORA_CS 18
+#define SD_CS 18
 
 #define LORA_RST 20
 #define LORA_IO 21

@@ -11,6 +11,10 @@
 
 #include <HardwareSerial.h>
 
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+
 HardwareSerial GPSSerial(1);
 
 // Modules instances
@@ -41,6 +45,24 @@ void setup() {
 
   // GPS
   GPSSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
+
+  // SD card
+  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
+  if (!SD.begin(SD_CS)){
+    Serial.println("Card Mount Failed");
+    return;
+  }
+  uint8_t cardType = SD.cardType();
+  if (cardType == CARD_NONE) {
+    Serial.println("No SD card attached");
+    return;
+  } else
+    Serial.println(cardType);
+  writeFile(SD, "/hello.txt", "Hello ");
+
+  // LoRa
+  pinMode(LORA_CS, OUTPUT);
+  digitalWrite(LORA_CS, HIGH);
 }
 
 void loop() {
@@ -69,6 +91,11 @@ void loop() {
   display.setTextColor(SH110X_BLACK, SH110X_WHITE); // 'inverted' text
   display.println(current_mA);
   display.display();
+
+  // save on SD card
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%f\n", current_mA);
+  appendFile(SD, "/hello.txt", buf);
 
   smartdelay(2000);
 }
@@ -105,4 +132,37 @@ static void print_int(unsigned long val, unsigned long invalid, int len) {
   if (len > 0) sz[len - 1] = ' ';
   Serial.print(sz);
   smartdelay(0);
+}
+
+// SD helpers
+void writeFile(fs::FS &fs, const char *path, const char *message) {
+  Serial.printf("Writing file: %s\n", path);
+
+  File file = fs.open(path, FILE_WRITE);
+  if (!file) {
+    Serial.println("Failed to open file for writing");
+    return;
+  }
+  if (file.print(message)) {
+    Serial.println("File written");
+  } else {
+    Serial.println("Write failed");
+  }
+  file.close();
+}
+
+void appendFile(fs::FS &fs, const char *path, const char *message) {
+  Serial.printf("Appending to file: %s\n", path);
+
+  File file = fs.open(path, FILE_APPEND);
+  if (!file) {
+    Serial.println("Failed to open file for appending");
+    return;
+  }
+  if (file.print(message)) {
+    Serial.println("Message appended");
+  } else {
+    Serial.println("Append failed");
+  }
+  file.close();
 }
