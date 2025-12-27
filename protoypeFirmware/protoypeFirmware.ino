@@ -15,6 +15,8 @@
 #include "SD.h"
 #include "SPI.h"
 
+#include <LoRa.h>
+
 HardwareSerial GPSSerial(1);
 
 // Modules instances
@@ -47,7 +49,10 @@ void setup() {
   GPSSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
 
   // SD card
-  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
+  pinMode(LORA_CS, OUTPUT);
+  digitalWrite(LORA_CS, HIGH);
+
+  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);//, SD_CS);
   if (!SD.begin(SD_CS)){
     Serial.println("Card Mount Failed");
     return;
@@ -61,8 +66,13 @@ void setup() {
   writeFile(SD, "/hello.txt", "Hello ");
 
   // LoRa
-  pinMode(LORA_CS, OUTPUT);
-  digitalWrite(LORA_CS, HIGH);
+  delay(2000);
+  LoRa.setPins(LORA_CS, LORA_RST, LORA_IO);
+  if (!LoRa.begin(433E6)) {
+    Serial.println("Starting LoRa failed!");
+  }
+  //pinMode(LORA_CS, OUTPUT);
+  //digitalWrite(LORA_CS, HIGH);
 }
 
 void loop() {
@@ -96,8 +106,15 @@ void loop() {
   char buf[32];
   snprintf(buf, sizeof(buf), "%f\n", current_mA);
   appendFile(SD, "/hello.txt", buf);
+  
+  // LoRa
+  // send packet
+  smartdelay(1000);
+  LoRa.beginPacket();
+  LoRa.print("hello ");
+  LoRa.endPacket();
 
-  smartdelay(2000);
+  smartdelay(90000);
 }
 
 // GPS helpers

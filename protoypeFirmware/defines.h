@@ -7,11 +7,11 @@
 #define SPI_MISO 21
 #define SPI_MOSI 19
 #define SPI_SCK 20
-#define LORA_CS 18
+#define LORA_CS 7
 #define SD_CS 18
 
-#define LORA_RST 20
-#define LORA_IO 21
+#define LORA_RST 1
+#define LORA_IO 0
 
 #define UART_RX 22
 #define UART_TX 23
