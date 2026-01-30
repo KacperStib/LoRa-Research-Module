@@ -10,6 +10,7 @@
 #include <TinyGPS.h>
 
 #include <HardwareSerial.h>
+#include <SoftwareSerial.h>
 
 #include "FS.h"
 #include "SD.h"
@@ -18,6 +19,7 @@
 #include <LoRa.h>
 
 HardwareSerial GPSSerial(1);
+SoftwareSerial AUXSerial(UART_RX, UART_TX);
 
 // Modules instances
 Adafruit_NeoPixel pixels(1, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -28,6 +30,9 @@ TinyGPS gps;
 float current_mA = 0;
 
 void setup() {
+  pinMode(23, OUTPUT);
+  digitalWrite(23, 0);
+
   Serial.begin(115200);
   Wire.begin(I2C_SDA, I2C_SCL);
 
@@ -39,7 +44,8 @@ void setup() {
   // INA219
   if (! ina219.begin())
     Serial.println("Failed to find INA219 chip");
-
+  ina219.setCalibration_32V_6A_50mOhm();
+  
   // OLED 
   display.begin(OLED_ADDR, true);
   display.display();
@@ -55,12 +61,12 @@ void setup() {
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);//, SD_CS);
   if (!SD.begin(SD_CS)){
     Serial.println("Card Mount Failed");
-    return;
+    //return;
   }
   uint8_t cardType = SD.cardType();
   if (cardType == CARD_NONE) {
     Serial.println("No SD card attached");
-    return;
+    //return;
   } else
     Serial.println(cardType);
   writeFile(SD, "/hello.txt", "Hello ");
@@ -73,6 +79,9 @@ void setup() {
   }
   //pinMode(LORA_CS, OUTPUT);
   //digitalWrite(LORA_CS, HIGH);
+
+  // AUX UART
+  AUXSerial.begin(9600);
 }
 
 void loop() {
@@ -108,13 +117,16 @@ void loop() {
   appendFile(SD, "/hello.txt", buf);
   
   // LoRa
-  // send packet
   smartdelay(1000);
   LoRa.beginPacket();
   LoRa.print("hello ");
   LoRa.endPacket();
 
-  smartdelay(90000);
+  // AUX UART
+  smartdelay(1000);
+  AUXSerial.println("HELLO UART");
+
+  smartdelay(10000);
 }
 
 // GPS helpers
