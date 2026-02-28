@@ -33,7 +33,10 @@ volatile float gps_lon = 0;
 volatile uint8_t gps_sats = 0;
 volatile bool gps_fix = false;
 
-volatile float current_mA = 0, rx_mA = 0;
+volatile float current_mA = 0, tx_mA = 0;
+
+volatile bool radio_mode = 0;   // RX - 0, TX - 1
+volatile int RSSI = 0;
 
 // Tasks handles
 TaskHandle_t taskGPSHandle;
@@ -44,6 +47,7 @@ TaskHandle_t taskLoRaHandle;
 TaskHandle_t taskAUXHandle;
 
 void setup() {
+  // Turn on LoRa power mosfet
   pinMode(23, OUTPUT);
   digitalWrite(23, 0);
 
@@ -53,6 +57,7 @@ void setup() {
   // INA219
   if (! ina219.begin())
     Serial.println("Failed to find INA219 chip");
+  
   ina219.setCalibration_32V_6A_50mOhm();
   
   // OLED 
@@ -68,6 +73,7 @@ void setup() {
   digitalWrite(LORA_CS, HIGH);
 
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);//, SD_CS);
+
   if (!SD.begin(SD_CS)){
     Serial.println("Card Mount Failed");
     //return;
@@ -76,8 +82,10 @@ void setup() {
   if (cardType == CARD_NONE) {
     Serial.println("No SD card attached");
     //return;
-  } else
+  } 
+  else
     Serial.println(cardType);
+
   writeFile(SD, "/hello.txt", "Hello ");
 
   // LoRa
@@ -119,13 +127,15 @@ void taskGPS(void *pv) {
     print_float(lat, TinyGPS::GPS_INVALID_F_ANGLE, 10, 6);
     print_float(lon, TinyGPS::GPS_INVALID_F_ANGLE, 11, 6);
 
+    // Indicate GPS fix only if there are more than 3 sats
     if (lat != TinyGPS::GPS_INVALID_F_ANGLE &&
         lon != TinyGPS::GPS_INVALID_F_ANGLE &&
         gps_sats >= 3) {
       gps_lat = lat;
       gps_lon = lon;
       gps_fix = true;
-    } else {
+    } 
+    else {
       gps_fix = false;
     }
 
@@ -150,32 +160,40 @@ void taskOLED(void *pv) {
     // Current
     display.setTextSize(1);
     display.setCursor(0, 0);
-    display.println("Pomiar pradu:");
-
-    display.setTextSize(2);
-    display.setCursor(0, 10);
+    display.print("Pomiar pradu: ");
     display.print(current_mA, 0);
-    display.println(" mA");
+    display.print(" mA");
 
-    display.setTextSize(1);
-    display.setCursor(0, 35);
+    display.setCursor(0, 10);
     display.print("Pik pradu: ");
-    display.print(rx_mA);
+    display.print(tx_mA);
 
     // GPS
-    display.setCursor(0, 45);
+    display.setCursor(0, 25);
     if (gps_fix) {
-      display.println("FIX");
-      display.setCursor(0, 55);
+      display.print("GPS FIX");
+      display.setCursor(0, 35);
       display.print(gps_lat, 5);
       display.print(",");
       display.print(gps_lon, 5);
-    } else {
-      display.println("NO FIX");
+    } 
+    else {
+      display.print("NO GPS FIX");
     }
 
+    // Radio
+    display.setCursor(0, 50);
+    display.print("Tryb LoRa: ");
+    if (radio_mode){
+      display.print("TX ---->"); 
+    }
+    else {
+      display.print("RX ");
+      display.print(RSSI);
+      display.print(" dBm");
+    }
     display.display();
-    vTaskDelay(pdMS_TO_TICKS(200));
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 
@@ -183,10 +201,22 @@ void taskOLED(void *pv) {
 void taskSD(void *pv) {
   char buf[60];
   for (;;) {
-    if (gps_fix)
-      snprintf(buf, sizeof(buf), "%f, %f, %f\n", current_mA, gps_lat, gps_lon);
-    else
-      snprintf(buf, sizeof(buf), "%f\n", current_mA);
+    // Radio TX
+    if (radio_mode){
+      if (gps_fix)
+        snprintf(buf, sizeof(buf), "%f, %f, %f\n", tx_mA, gps_lat, gps_lon);
+      else
+        snprintf(buf, sizeof(buf), "%f\n", tx_mA);
+    }
+
+    // Radio RX
+    else{
+      if (gps_fix)
+        snprintf(buf, sizeof(buf), "%f, %f, %f\n", current_mA, gps_lat, gps_lon);
+      else
+        snprintf(buf, sizeof(buf), "%f, %d\n", current_mA, RSSI);
+    }
+
     appendFile(SD, "/hello.txt", buf);
     vTaskDelay(pdMS_TO_TICKS(10000));
   }
@@ -195,19 +225,67 @@ void taskSD(void *pv) {
 // ===== TASK LORA =====
 void taskLoRa(void *pv) {
   for (;;) {
-    LoRa.beginPacket();
-    LoRa.print("hello ");
-    LoRa.endPacket();
-    rx_mA = ina219.getCurrent_mA();
-    vTaskDelay(pdMS_TO_TICKS(10000));
+
+    // Transmitter
+    if (radio_mode){
+      LoRa.beginPacket();
+      LoRa.print("hello ");
+      LoRa.endPacket();
+      tx_mA = ina219.getCurrent_mA();
+      vTaskDelay(pdMS_TO_TICKS(10000));
+    } 
+    
+    // Receiver
+    else {
+      int packetSize = LoRa.parsePacket();
+      if (packetSize) {
+        while (LoRa.available())
+          Serial.print((char)LoRa.read());
+        RSSI = LoRa.packetRssi(); 
+      }
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
   }
 }
 
 // ===== TASK AUX =====
 void taskAUX(void *pv) {
+  static char buffer[10];
+  uint8_t idx = 0;
+
   for (;;) {
-    AUXSerial.println("HELLO UART");
-    vTaskDelay(pdMS_TO_TICKS(5000));
+
+    while (AUXSerial.available()) {
+
+      char c = AUXSerial.read();
+
+      // AUX serial only for radio mode selection
+      if (c == '\n' || c == '\r') {
+        buffer[idx] = '\0';   
+        idx = 0;
+
+        if (strcmp(buffer, "RX") == 0) {
+          Serial.println("TRYB RX");
+          AUXSerial.println("TRYB RX");
+          radio_mode = false;
+        }
+        else if (strcmp(buffer, "TX") == 0) {
+          Serial.println("TRYB TX");
+          AUXSerial.println("TRYB TX");
+          radio_mode = true;
+        }
+        else {
+          Serial.println("Nieznana komenda");
+          AUXSerial.println("Nieznana komenda");
+        }
+
+      } else {
+        if (idx < sizeof(buffer) - 1) {
+          buffer[idx++] = c;
+        }
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
