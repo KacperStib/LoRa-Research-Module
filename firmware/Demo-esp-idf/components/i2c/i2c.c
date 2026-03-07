@@ -111,3 +111,137 @@ esp_err_t i2c_write_2byte(uint8_t ADDR, uint8_t REG, uint16_t VAL){
 	i2c_cmd_link_delete(cmd);
 	return err;
 }
+
+/*---------- Funkcje dla ekranu OLED ----------*/
+
+// Inicjalizacja ekranu poprzez i2c
+void i2c_init(SSD1306_t * dev, int width, int height) {
+	dev->_address = I2C_ADDRESS;
+	dev->_flip = false;
+	dev->_i2c_num = I2C_MASTER_NUM;
+	dev->_width = width;
+	dev->_height = height;
+	dev->_pages = 8;
+	if (dev->_height == 32) dev->_pages = 4;
+	
+	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+
+	i2c_master_start(cmd);
+	i2c_master_write_byte(cmd, (dev->_address << 1) | I2C_MASTER_WRITE, true);
+	i2c_master_write_byte(cmd, OLED_CONTROL_BYTE_CMD_STREAM, true);
+	i2c_master_write_byte(cmd, OLED_CMD_DISPLAY_OFF, true);				// AE
+	i2c_master_write_byte(cmd, OLED_CMD_SET_MUX_RATIO, true);			// A8
+	if (dev->_height == 64) i2c_master_write_byte(cmd, 0x3F, true);
+	if (dev->_height == 32) i2c_master_write_byte(cmd, 0x1F, true);
+	i2c_master_write_byte(cmd, OLED_CMD_SET_DISPLAY_OFFSET, true);		// D3
+	i2c_master_write_byte(cmd, 0x00, true);
+	//i2c_master_write_byte(cmd, OLED_CONTROL_BYTE_DATA_STREAM, true);	// 40
+	i2c_master_write_byte(cmd, OLED_CMD_SET_DISPLAY_START_LINE, true);	// 40
+	//i2c_master_write_byte(cmd, OLED_CMD_SET_SEGMENT_REMAP, true);		// A1
+	if (dev->_flip) {
+		i2c_master_write_byte(cmd, OLED_CMD_SET_SEGMENT_REMAP_0, true); // A0
+	} else {
+		i2c_master_write_byte(cmd, OLED_CMD_SET_SEGMENT_REMAP_1, true);	// A1
+	}
+	i2c_master_write_byte(cmd, OLED_CMD_SET_COM_SCAN_MODE, true);		// C8
+	i2c_master_write_byte(cmd, OLED_CMD_SET_DISPLAY_CLK_DIV, true);		// D5
+	i2c_master_write_byte(cmd, 0x80, true);
+	i2c_master_write_byte(cmd, OLED_CMD_SET_COM_PIN_MAP, true);			// DA
+	if (dev->_height == 64) i2c_master_write_byte(cmd, 0x12, true);
+	if (dev->_height == 32) i2c_master_write_byte(cmd, 0x02, true);
+	i2c_master_write_byte(cmd, OLED_CMD_SET_CONTRAST, true);			// 81
+	i2c_master_write_byte(cmd, 0xFF, true);
+	i2c_master_write_byte(cmd, OLED_CMD_DISPLAY_RAM, true);				// A4
+	i2c_master_write_byte(cmd, OLED_CMD_SET_VCOMH_DESELCT, true);		// DB
+	i2c_master_write_byte(cmd, 0x40, true);
+	i2c_master_write_byte(cmd, OLED_CMD_SET_MEMORY_ADDR_MODE, true);	// 20
+	//i2c_master_write_byte(cmd, OLED_CMD_SET_HORI_ADDR_MODE, true);	// 00
+	i2c_master_write_byte(cmd, OLED_CMD_SET_PAGE_ADDR_MODE, true);		// 02
+	// Set Lower Column Start Address for Page Addressing Mode
+	i2c_master_write_byte(cmd, 0x00, true);
+	// Set Higher Column Start Address for Page Addressing Mode
+	i2c_master_write_byte(cmd, 0x10, true);
+	i2c_master_write_byte(cmd, OLED_CMD_SET_CHARGE_PUMP, true);			// 8D
+	i2c_master_write_byte(cmd, 0x14, true);
+	i2c_master_write_byte(cmd, OLED_CMD_DEACTIVE_SCROLL, true);			// 2E
+	i2c_master_write_byte(cmd, OLED_CMD_DISPLAY_NORMAL, true);			// A6
+	i2c_master_write_byte(cmd, OLED_CMD_DISPLAY_ON, true);				// AF
+
+	i2c_master_stop(cmd);
+
+	esp_err_t res = i2c_master_cmd_begin(dev->_i2c_num, cmd, I2C_TICKS_TO_WAIT);
+	if (res == ESP_OK) {
+		ESP_LOGI(TAG, "OLED configured successfully");
+	} else {
+		ESP_LOGE(TAG, "OLED configuration failed. code: 0x%.2X", res);
+	}
+	i2c_cmd_link_delete(cmd);
+}
+
+// Wyswietlanie na ekranie poprzez i2c
+void i2c_display_image(SSD1306_t * dev, int page, int seg, const uint8_t * images, int width) {
+	if (page >= dev->_pages) return;
+	if (seg >= dev->_width) return;
+
+	int _seg = seg + CONFIG_OFFSETX;
+	uint8_t columLow = _seg & 0x0F;
+	uint8_t columHigh = (_seg >> 4) & 0x0F;
+
+	int _page = page;
+	if (dev->_flip) {
+		_page = (dev->_pages - page) - 1;
+	}
+
+	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+	i2c_master_start(cmd);
+	i2c_master_write_byte(cmd, (dev->_address << 1) | I2C_MASTER_WRITE, true);
+
+	i2c_master_write_byte(cmd, OLED_CONTROL_BYTE_CMD_STREAM, true);
+	// Set Lower Column Start Address for Page Addressing Mode
+	i2c_master_write_byte(cmd, (0x00 + columLow), true);
+	// Set Higher Column Start Address for Page Addressing Mode
+	i2c_master_write_byte(cmd, (0x10 + columHigh), true);
+	// Set Page Start Address for Page Addressing Mode
+	i2c_master_write_byte(cmd, 0xB0 | _page, true);
+
+	i2c_master_stop(cmd);
+	esp_err_t res = i2c_master_cmd_begin(dev->_i2c_num, cmd, I2C_TICKS_TO_WAIT);
+	if (res != ESP_OK) {
+		ESP_LOGE(TAG, "Image command failed. code: 0x%.2X", res);
+	}
+	i2c_cmd_link_delete(cmd);
+
+	cmd = i2c_cmd_link_create();
+	i2c_master_start(cmd);
+	i2c_master_write_byte(cmd, (dev->_address << 1) | I2C_MASTER_WRITE, true);
+	i2c_master_write_byte(cmd, OLED_CONTROL_BYTE_DATA_STREAM, true);
+	i2c_master_write(cmd, images, width, true);
+	i2c_master_stop(cmd);
+
+	res = i2c_master_cmd_begin(dev->_i2c_num, cmd, I2C_TICKS_TO_WAIT);
+	if (res != ESP_OK) {
+		ESP_LOGE(TAG, "Image command failed. code: 0x%.2X", res);
+	}
+	i2c_cmd_link_delete(cmd);
+}
+
+// Ustawienie kontrastu wyswietlacza poprzez i2c
+void i2c_contrast(SSD1306_t * dev, int contrast) {
+	int _contrast = contrast;
+	if (contrast < 0x0) _contrast = 0;
+	if (contrast > 0xFF) _contrast = 0xFF;
+
+	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+	i2c_master_start(cmd);
+	i2c_master_write_byte(cmd, (dev->_address << 1) | I2C_MASTER_WRITE, true);
+	i2c_master_write_byte(cmd, OLED_CONTROL_BYTE_CMD_STREAM, true); // 00
+	i2c_master_write_byte(cmd, OLED_CMD_SET_CONTRAST, true); // 81
+	i2c_master_write_byte(cmd, _contrast, true);
+	i2c_master_stop(cmd);
+
+	esp_err_t res = i2c_master_cmd_begin(dev->_i2c_num, cmd, I2C_TICKS_TO_WAIT);
+	if (res != ESP_OK) {
+		ESP_LOGE(TAG, "Contrast command failed. code: 0x%.2X", res);
+	}
+	i2c_cmd_link_delete(cmd);
+}
