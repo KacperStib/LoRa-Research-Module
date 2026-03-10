@@ -1,7 +1,6 @@
 #ifndef MAIN_BOARD_CONFIG_H_
 #define MAIN_BOARD_CONFIG_H_
 
-
 #define I2C_SDA 2
 #define I2C_SCL 3
 

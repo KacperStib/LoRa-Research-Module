@@ -4,6 +4,7 @@
 
 #include "ina219.h"
 #include "oled.h"
+#include "sd_card.h"
 
 void app_main(void)
 {	
@@ -24,6 +25,11 @@ void app_main(void)
 	ssd1306_display_text(&dev, 0, "Hello", 5, false);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	
+	// Inicjalizacja SD karty
+	sd_card_init();
+	snprintf(LOG_FILE_NAME, sizeof(LOG_FILE_NAME), "%s/log.txt", MOUNT_POINT);
+	s_example_write_file((const char*)LOG_FILE_NAME, "HELLO FROM ESP IDF");
+	
     while (true) {
         printf("Hello from app_main!\n");
         // Odczyt pradu
@@ -34,6 +40,12 @@ void app_main(void)
 		char buf[12];
 		sprintf(buf, "Prad: %.2f", current);
 		ssd1306_display_text(&dev, 1, buf, 12, false);
+        
+        // Zapis na karte SD
+        snprintf(buf, sizeof(buf), "CURR: %.2f\n", current);
+        s_example_append_file((const char*)LOG_FILE_NAME, buf);
+        
         vTaskDelay(1000 / portTICK_PERIOD_MS);
+        
     }
 }
