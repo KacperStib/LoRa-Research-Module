@@ -13,6 +13,10 @@
 #include "sdmmc_cmd.h"
 #include "esp_vfs_fat.h"
 
+#include "../../main/bsp.h"
+
+#define SD_TAG "SD_CARD"
+
 #define EXAMPLE_MAX_CHAR_SIZE    64
 #define MOUNT_POINT "/sdcard"
 
