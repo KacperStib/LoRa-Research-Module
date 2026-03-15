@@ -12,6 +12,8 @@
 #define INA219_REG_CURRENT (0x04)
 #define INA219_REG_CALIBRATION (0x05)
 
+#define TAG_PWR "PWR"
+
 extern uint8_t ina_range;
 extern uint8_t ina_gain;
 extern uint8_t ina_b_res; 

@@ -57,7 +57,9 @@ float ina219_read_current(){
 	i2c_read(INA219_ADDR, buf, 2);
 	// value = MSB * 256 + LSB
 	float current = (uint16_t)buf[0] * 256 + (uint16_t)buf[1];
-	return current * currentLSB;
+	current = current * currentLSB;
+	ESP_LOGD(TAG_PWR,"CURRENT: %.2f", current);
+	return current;
 }
 
 // Prostu odczyt mocy
@@ -67,5 +69,7 @@ float ina219_read_power(){
 	i2c_read(INA219_ADDR, buf, 2);
 	// value = MSB * 256 + LSB
 	float power = (uint16_t)buf[0] * 256 + (uint16_t)buf[1];
-	return power * powerLSB;
+	power = power * powerLSB;
+	ESP_LOGD(TAG_PWR,"POWER: %.2f", power);
+	return power;
 }

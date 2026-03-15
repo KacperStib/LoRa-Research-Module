@@ -2,16 +2,78 @@
 #include <stdbool.h>
 #include <unistd.h>
 
+#include "esp_log.h"
 #include "spi.h"
 #include "ina219.h"
 #include "oled.h"
 #include "sd_card.h"
 #include "lora.h"
 #include "gps.h"
+#include "shell_mng.h"
+#include "dev_config.h"
+
+float current_mA = 0;
+SSD1306_t dev;
+
+// ===== TASK PWR =====
+void vPowerTask(void *pv) {
+	for (;;) {
+    	current_mA = ina219_read_current() * 1000;
+    	vTaskDelay(pdMS_TO_TICKS(200));
+  	}
+}
+
+// ===== TASK OLED =====
+void vOledTask(void *pv) {
+	for (;;) {
+		char buf[12];
+		
+		sprintf(buf, "Prad: %.2f", current_mA);
+		ssd1306_display_text(&dev, 1, buf, 12, false);
+		
+		sprintf(buf, "GPS: %.2f", current_mA);
+		ssd1306_display_text(&dev, 2, buf, 12, false);
+		
+		sprintf(buf, "Radio: %s", radio_mode ? "TX" : "RX");
+		ssd1306_display_text(&dev, 3, buf, 12, false);
+		
+		vTaskDelay(pdMS_TO_TICKS(200));
+	}
+}
+
+// ===== TASK SD =====
+void vLogTask(void *pv) {
+	for (;;) {
+		char buf[50];
+		snprintf(buf, sizeof(buf), "CURR: %.2f\n", current_mA);
+        s_example_append_file((const char*)LOG_FILE_NAME, buf);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+ 	}
+}
+
+// ===== TASK LORA =====
+void vRadioTask(void *pv) {
+	uint8_t buf8[32];
+	for (;;) {
+		if (radio_mode){
+			// LoRa send
+	        int send_len = sprintf((char *)buf8,"Hello World!!");
+	        lora_send_packet(buf8, send_len);
+	        vTaskDelay(60000 / portTICK_PERIOD_MS);
+	  	}
+	  	else {
+			lora_receive(); // put into receive mode
+			if (lora_received()) {
+				int rxLen = lora_receive_packet(buf8, sizeof(buf8));
+				ESP_LOGI(pcTaskGetName(NULL), "%d byte packet received:[%.*s]", rxLen, rxLen, buf8);
+			}
+			vTaskDelay(1); // Avoid WatchDog alerts 
+		}
+	}
+}
 
 void app_main(void)
 {	
-	SSD1306_t dev;
 	// Inicjalizacja magistrali I2C
 	if (i2c_master_init() != ESP_OK)
 		ESP_LOGE("I2c", "I2C init: ERROR");
@@ -51,27 +113,12 @@ void app_main(void)
     /* register event handler for NMEA parser library */
     nmea_parser_add_handler(nmea_hdl, gps_event_handler, NULL);
 	
-    while (true) {
-        printf("Hello from app_main!\n");
-        // Odczyt pradu
-		float current = ina219_read_current() * 1000;
-		printf("CURRENT: %.2f\n", current);
-		
-		// Wyswietlanie na ekranie OLED
-		char buf[12];
-		sprintf(buf, "Prad: %.2f", current);
-		ssd1306_display_text(&dev, 1, buf, 12, false);
-        
-        // Zapis na karte SD
-        snprintf(buf, sizeof(buf), "CURR: %.2f\n", current);
-        s_example_append_file((const char*)LOG_FILE_NAME, buf);
-        
-        // LoRa send
-        uint8_t buf8[32];
-        int send_len = sprintf((char *)buf8,"Hello World!!");
-        lora_send_packet(buf8, send_len);
-        
-        vTaskDelay(60000 / portTICK_PERIOD_MS);
-        
-    }
+	// Tasks
+	xTaskCreate(vPowerTask,  "PWR",  2048, NULL, 5, NULL);
+	xTaskCreate(vOledTask,  "OLED",  4096, NULL, 6, NULL);
+	xTaskCreate(vLogTask,  "SD",  4096, NULL, 3, NULL);
+	xTaskCreate(vRadioTask,  "RADIO",  4096, NULL, 1, NULL);
+	
+	// Konsola
+	shell_init();
 }
