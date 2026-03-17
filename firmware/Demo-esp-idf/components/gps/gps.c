@@ -27,6 +27,12 @@
  */
 ESP_EVENT_DEFINE_BASE(ESP_NMEA_EVENT);
 
+// My data
+volatile uint8_t gps_sats = 0;
+volatile bool    gps_fix   = false;
+volatile float   gps_lat   = 0.0f;
+volatile float   gps_lon   = 0.0f;
+
 static const char *GPS_TAG = "nmea_parser";
 
 /**
@@ -791,6 +797,12 @@ void gps_event_handler(void *event_handler_arg, esp_event_base_t event_base, int
     switch (event_id) {
     case GPS_UPDATE:
         gps = (gps_t *)event_data;
+        // My data
+        gps_sats = gps->sats_in_use;
+        gps_fix   = (gps->valid && gps->sats_in_use >= 3);
+    	gps_lat   = gps->latitude;
+    	gps_lon   = gps->longitude;
+    	
         /* print information parsed from GPS statements */
         ESP_LOGI(GPS_TAG, "%d/%d/%d %d:%d:%d => \r\n"
                  "\t\t\t\t\t\tlatitude   = %.05f°N\r\n"

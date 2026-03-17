@@ -34,8 +34,11 @@ extern "C" {
 #define CONFIG_NMEA_STATEMENT_GLL 1
 #define CONFIG_NMEA_STATEMENT_VTG 1
 
-#define TIME_ZONE (+8)   //Beijing Time
-#define YEAR_BASE (2000) //date in GPS starts from 2000
+// my data global
+extern volatile uint8_t gps_sats;
+extern volatile bool  gps_fix;
+extern volatile float gps_lat;
+extern volatile float gps_lon;
 
 /**
  * @brief Declare of NMEA Parser Event base
@@ -164,7 +167,7 @@ typedef void *nmea_parser_handle_t;
     {                                             \
         .uart = {                                 \
             .uart_port = UART_NUM_1,              \
-            .rx_pin = 16,						  \
+            .rx_pin = GPS_RX,					  \
             .baud_rate = 9600,                    \
             .data_bits = UART_DATA_8_BITS,        \
             .parity = UART_PARITY_DISABLE,        \

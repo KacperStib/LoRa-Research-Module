@@ -2,7 +2,26 @@
 #define DEV_CONFIG_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
-extern volatile bool radio_mode;
+typedef enum {
+    RADIO_TECH_LORA   = 0,
+    RADIO_TECH_ESPNOW = 1,
+} radio_tech_t;
+
+typedef enum {
+    RADIO_DIR_RX = 0,
+    RADIO_DIR_TX = 1,
+} radio_dir_t;
+
+// Główna struktura konfiguracyjna — będzie szła do NVS
+typedef struct {
+    radio_tech_t tech;
+    radio_dir_t  dir;
+    uint8_t      peer_mac[6];
+    // tu później częstotliwość LoRa, MAC ESP-NOW, itp.
+} radio_config_t;
+
+extern volatile radio_config_t radio_cfg;
 
 #endif

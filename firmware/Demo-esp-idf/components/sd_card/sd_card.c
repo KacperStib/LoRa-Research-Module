@@ -2,6 +2,7 @@
 #include "include/sd_card.h"
 
 char LOG_FILE_NAME[64] = {0,};
+bool sd_card_ready = 0;
 
 esp_err_t sd_card_init()
 {	
@@ -37,6 +38,7 @@ esp_err_t sd_card_init()
  
     sdmmc_card_print_info(stdout, card);
     ESP_LOGI(SD_TAG, "Karta SD zamontowana w %s", MOUNT_POINT);
+    sd_card_ready = 1;
     return ESP_OK;
 }
 

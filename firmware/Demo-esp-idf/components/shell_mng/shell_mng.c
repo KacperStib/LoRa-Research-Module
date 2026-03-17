@@ -37,24 +37,84 @@ static int cmd_log(int argc, char **argv)
     return 0;
 }
 
-// ─── Handler komendy "radio" ──────────────────────────────────
+// ─── Handler komendy "radio" (tech: lora/espnow) ──────────────
 static int cmd_radio(int argc, char **argv)
 {
     if (argc < 2) {
-        printf("Tryb: %s\n", radio_mode ? "TX" : "RX");
+        printf("Technologia: %s\n",
+               radio_cfg.tech == RADIO_TECH_LORA ? "lora" : "espnow");
+        return 0;
+    }
+
+    if (strcmp(argv[1], "lora") == 0) {
+        radio_cfg.tech = RADIO_TECH_LORA;
+        esp_now_deinit();
+        lora_init();
+        printf("Technologia: LORA\n");
+    } else if (strcmp(argv[1], "espnow") == 0) {
+        radio_cfg.tech = RADIO_TECH_ESPNOW;
+        gpio_set_level(LORA_PWR, 0);   // odetnij zasilanie lora
+        espnow_init(espnow_rx_handler);
+        printf("Technologia: ESP-NOW\n");
+    } else {
+        printf("Nieznana: '%s'  (dostepne: lora  espnow)\n", argv[1]);
+        return 1;
+    }
+    return 0;
+}
+
+// ─── Handler komendy "dir" (kierunek: rx/tx) ──────────────────
+static int cmd_dir(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Kierunek: %s\n",
+               radio_cfg.dir == RADIO_DIR_TX ? "tx" : "rx");
         return 0;
     }
 
     if (strcmp(argv[1], "tx") == 0) {
-        radio_mode = true;
-        printf("Tryb ustawiony: TX\n");
+        radio_cfg.dir = RADIO_DIR_TX;
+        printf("Kierunek: TX\n");
     } else if (strcmp(argv[1], "rx") == 0) {
-        radio_mode = false;
-        printf("Tryb ustawiony: RX\n");
+        radio_cfg.dir = RADIO_DIR_RX;
+        printf("Kierunek: RX\n");
     } else {
-        printf("Nieznany tryb: '%s'  (dostepne: rx  tx)\n", argv[1]);
+        printf("Nieznany: '%s'  (dostepne: rx  tx)\n", argv[1]);
         return 1;
     }
+    return 0;
+}
+
+// ─── Handler komendy "mac"  ──────────────────
+static int cmd_mac(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("MAC: " MACSTR "\n", MAC2STR(radio_cfg.peer_mac));
+        return 0;
+    }
+
+    // Parsuj XX:XX:XX:XX:XX:XX
+    uint8_t mac[6];
+    int n = sscanf(argv[1], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+                   &mac[0], &mac[1], &mac[2],
+                   &mac[3], &mac[4], &mac[5]);
+    if (n != 6) {
+        printf("Zly format. Uzycie: mac XX:XX:XX:XX:XX:XX\n");
+        return 1;
+    }
+
+    memcpy((void*)radio_cfg.peer_mac, mac, 6);
+    espnow_set_peer(mac);
+    printf("MAC ustawiony: " MACSTR "\n", MAC2STR(mac));
+    return 0;
+}
+
+static int cmd_mymac(int argc, char **argv)
+{
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    printf("My MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return 0;
 }
 
@@ -92,8 +152,28 @@ void console_radio_register(void)
 {
     ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
         .command = "radio",
-        .help    = "Ustaw tryb LoRa: radio <rx|tx>  (bez argumentu = pokaz aktualny)",
-        .hint    = "<rx|tx>",
+        .help    = "Ustaw technologie: radio <lora|espnow>",
+        .hint    = "<lora|espnow>",
         .func    = cmd_radio,
     }));
+
+    ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
+        .command = "dir",
+        .help    = "Ustaw kierunek: dir <rx|tx>",
+        .hint    = "<rx|tx>",
+        .func    = cmd_dir,
+    }));
+    
+    ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
+	    .command = "mac",
+	    .help    = "Ustaw MAC peer ESP-NOW: mac XX:XX:XX:XX:XX:XX",
+	    .hint    = "XX:XX:XX:XX:XX:XX",
+	    .func    = cmd_mac,
+	}));
+	
+	ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
+	    .command = "mymac",
+	    .help    = "Pokaz MAC tego urzadzenia",
+	    .func    = cmd_mymac,
+	}));
 }

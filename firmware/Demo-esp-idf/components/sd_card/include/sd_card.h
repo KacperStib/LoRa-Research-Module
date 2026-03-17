@@ -21,6 +21,7 @@
 #define MOUNT_POINT "/sdcard"
 
 extern char LOG_FILE_NAME[64];
+extern bool sd_card_ready;
 
 esp_err_t sd_card_init();
 esp_err_t s_example_write_file(const char *path, char *data);

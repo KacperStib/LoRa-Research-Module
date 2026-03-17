@@ -2,6 +2,9 @@
 #define SHELL_MNG_H
 
 #include "dev_config.h"
+#include "esp_now_c.h"
+#include "lora.h"
+
 // w sdkconfig ustawic esp_console jakby zmieniac na UART a nie USB
 
 /**

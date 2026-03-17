@@ -26,16 +26,23 @@ void vPowerTask(void *pv) {
 // ===== TASK OLED =====
 void vOledTask(void *pv) {
 	for (;;) {
-		char buf[12];
+		char buf[32];
 		
 		sprintf(buf, "Prad: %.2f", current_mA);
-		ssd1306_display_text(&dev, 1, buf, 12, false);
+		ssd1306_display_text(&dev, 1, buf,strlen(buf), false);
 		
-		sprintf(buf, "GPS: %.2f", current_mA);
-		ssd1306_display_text(&dev, 2, buf, 12, false);
+		sprintf(buf, "GPS FIX: %s (%d)", gps_fix ? "Y" : "N", gps_sats);
+		ssd1306_display_text(&dev, 2, buf, strlen(buf), false);
 		
-		sprintf(buf, "Radio: %s", radio_mode ? "TX" : "RX");
-		ssd1306_display_text(&dev, 3, buf, 12, false);
+		if (gps_fix){
+			sprintf(buf, "%.2f N %.2f E", gps_lat, gps_lon);
+			ssd1306_display_text(&dev, 3, buf, strlen(buf), false);
+		}
+		
+		sprintf(buf, "%s %s",
+				radio_cfg.tech == RADIO_TECH_LORA ? "LORA" : "ESPNOW",
+				radio_cfg.dir ? "TX" : "RX");
+		ssd1306_display_text(&dev, 4, buf, strlen(buf), false);
 		
 		vTaskDelay(pdMS_TO_TICKS(200));
 	}
@@ -44,8 +51,17 @@ void vOledTask(void *pv) {
 // ===== TASK SD =====
 void vLogTask(void *pv) {
 	for (;;) {
+		if (!sd_card_ready){
+			sd_card_init();
+			snprintf(LOG_FILE_NAME, sizeof(LOG_FILE_NAME), "%s/log.txt", MOUNT_POINT);
+			s_example_write_file((const char*)LOG_FILE_NAME, "Measurements:");
+		}
+			
 		char buf[50];
-		snprintf(buf, sizeof(buf), "CURR: %.2f\n", current_mA);
+		if (gps_fix)
+			snprintf(buf, sizeof(buf), "CURR: %.2f LAT: %f LON: %f\n", current_mA, gps_lat, gps_lon);
+		else
+			snprintf(buf, sizeof(buf), "CURR: %.2f\n", current_mA);
         s_example_append_file((const char*)LOG_FILE_NAME, buf);
         vTaskDelay(pdMS_TO_TICKS(1000));
  	}
@@ -55,19 +71,31 @@ void vLogTask(void *pv) {
 void vRadioTask(void *pv) {
 	uint8_t buf8[32];
 	for (;;) {
-		if (radio_mode){
-			// LoRa send
-	        int send_len = sprintf((char *)buf8,"Hello World!!");
-	        lora_send_packet(buf8, send_len);
-	        vTaskDelay(60000 / portTICK_PERIOD_MS);
-	  	}
-	  	else {
-			lora_receive(); // put into receive mode
-			if (lora_received()) {
-				int rxLen = lora_receive_packet(buf8, sizeof(buf8));
-				ESP_LOGI(pcTaskGetName(NULL), "%d byte packet received:[%.*s]", rxLen, rxLen, buf8);
+		if (radio_cfg.tech == RADIO_TECH_LORA){
+			if (radio_cfg.dir){
+				// LoRa send
+		        int send_len = sprintf((char *)buf8,"Hello World!!");
+		        lora_send_packet(buf8, send_len);
+		        vTaskDelay(6000 / portTICK_PERIOD_MS);
+		  	}
+		  	else {
+				lora_receive(); // put into receive mode
+				if (lora_received()) {
+					int rxLen = lora_receive_packet(buf8, sizeof(buf8));
+					ESP_LOGI(pcTaskGetName(NULL), "%d byte packet received:[%.*s]", rxLen, rxLen, buf8);
+				}
+				vTaskDelay(1); // Avoid WatchDog alerts 
 			}
-			vTaskDelay(1); // Avoid WatchDog alerts 
+		}
+		else { // ESPNOW
+			if (radio_cfg.dir){
+		        int len = sprintf((char *)buf8, "Hello ESP-NOW!");
+                espnow_send(buf8, len);
+                vTaskDelay(pdMS_TO_TICKS(6000));
+		  	}
+		  	else {
+				vTaskDelay(pdMS_TO_TICKS(100));
+			}
 		}
 	}
 }
@@ -90,13 +118,13 @@ void app_main(void)
 	ssd1306_init(&dev, 128, 64);
 	ssd1306_clear_screen(&dev, false);
 	ssd1306_contrast(&dev, 0xff);
-	ssd1306_display_text(&dev, 0, "Hello", 5, false);
+	ssd1306_display_text(&dev, 0, "Radio Module", 13, false);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	
 	// Inicjalizacja SD karty
 	sd_card_init();
 	snprintf(LOG_FILE_NAME, sizeof(LOG_FILE_NAME), "%s/log.txt", MOUNT_POINT);
-	s_example_write_file((const char*)LOG_FILE_NAME, "HELLO FROM ESP IDF");
+	s_example_write_file((const char*)LOG_FILE_NAME, "Measurements:");
 	
 	// Inicjalizacja LoRa
 	lora_init();
