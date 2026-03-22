@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "lora.h"#include "esp_now_c.h"
+#include "esp_log.h"
 
 typedef enum {
     RADIO_TECH_LORA   = 0,
@@ -23,5 +25,7 @@ typedef struct {
 } radio_config_t;
 
 extern volatile radio_config_t radio_cfg;
+
+void radio_apply_config(void);
 
 #endif

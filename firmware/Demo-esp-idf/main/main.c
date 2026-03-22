@@ -11,6 +11,7 @@
 #include "gps.h"
 #include "shell_mng.h"
 #include "dev_config.h"
+#include "nvs_storage.h"
 
 float current_mA = 0;
 SSD1306_t dev;
@@ -108,6 +109,20 @@ void app_main(void)
 	// Inicjalizacja magistrali SPI
 	spi_init();
 	
+	// NVS — jedno wywołanie, tutaj, przed wszystkim co z NVS korzysta
+	esp_err_t ret = nvs_flash_init();
+	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+	    ESP_ERROR_CHECK(nvs_flash_erase());
+	    ret = nvs_flash_init();
+	}
+	ESP_ERROR_CHECK(ret);
+	
+	// Wczytaj ostatni config z NVS (jeśli brak — zostaną defaulty z dev_config.c)
+	nvs_cfg_load((radio_config_t *)&radio_cfg);
+	
+	// Zastosuj config sprzętowo
+	radio_apply_config();
+
 	// Urchomienie i config ina219
 	ina219_power_on(0.05, 10);
 	if (err != ESP_OK)
@@ -125,13 +140,6 @@ void app_main(void)
 	sd_card_init();
 	snprintf(LOG_FILE_NAME, sizeof(LOG_FILE_NAME), "%s/log.txt", MOUNT_POINT);
 	s_example_write_file((const char*)LOG_FILE_NAME, "Measurements:");
-	
-	// Inicjalizacja LoRa
-	lora_init();
-	lora_set_frequency(433e6);
-	lora_set_coding_rate(1);
-	lora_set_bandwidth(7);
-	lora_set_spreading_factor(7);
 	
 	// Inicjalizacja handlera GPS
 	/* NMEA parser configuration */

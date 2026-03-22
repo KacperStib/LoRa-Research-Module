@@ -48,18 +48,21 @@ static int cmd_radio(int argc, char **argv)
 
     if (strcmp(argv[1], "lora") == 0) {
         radio_cfg.tech = RADIO_TECH_LORA;
-        esp_now_deinit();
-        lora_init();
+        //espnow_deinit();
+        //lora_init();
         printf("Technologia: LORA\n");
     } else if (strcmp(argv[1], "espnow") == 0) {
         radio_cfg.tech = RADIO_TECH_ESPNOW;
-        gpio_set_level(LORA_PWR, 0);   // odetnij zasilanie lora
-        espnow_init(espnow_rx_handler);
+        //gpio_set_level(LORA_PWR, 0);   // odetnij zasilanie lora
+        //espnow_init(espnow_rx_handler);
         printf("Technologia: ESP-NOW\n");
     } else {
         printf("Nieznana: '%s'  (dostepne: lora  espnow)\n", argv[1]);
         return 1;
     }
+    
+    radio_apply_config();
+    
     return 0;
 }
 
@@ -116,6 +119,64 @@ static int cmd_mymac(int argc, char **argv)
     printf("My MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return 0;
+}
+
+// ─── Handler komendy "config show|save|load" ──────────────────
+static int cmd_config(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Uzycie: config <show|save|load>\n");
+        return 1;
+    }
+
+    // ── show ──────────────────────────────────────────────────
+    if (strcmp(argv[1], "show") == 0) {
+        printf("=== Konfiguracja ===\n");
+        printf("  tech:     %s\n",
+               radio_cfg.tech == RADIO_TECH_LORA ? "lora" : "espnow");
+        printf("  dir:      %s\n",
+               radio_cfg.dir == RADIO_DIR_TX ? "tx" : "rx");
+        printf("  peer_mac: " MACSTR "\n", MAC2STR(radio_cfg.peer_mac));
+        return 0;
+    }
+
+    // ── save ──────────────────────────────────────────────────
+    if (strcmp(argv[1], "save") == 0) {
+        radio_config_t snap = {
+            .tech = radio_cfg.tech,
+            .dir  = radio_cfg.dir,
+        };
+        memcpy(snap.peer_mac, (const void *)radio_cfg.peer_mac, 6);
+
+        if (nvs_cfg_save(&snap) == ESP_OK)
+            printf("Config zapisany do NVS.\n");
+        else
+            printf("Blad zapisu do NVS!\n");
+        return 0;
+    }
+
+    // ── load ──────────────────────────────────────────────────
+    if (strcmp(argv[1], "load") == 0) {
+        radio_config_t tmp = {0};
+        if (nvs_cfg_load(&tmp) != ESP_OK) {
+            printf("Blad odczytu z NVS (brak zapisu lub blad flash).\n");
+            return 1;
+        }
+        radio_cfg.tech = tmp.tech;
+        radio_cfg.dir  = tmp.dir;
+        memcpy((void *)radio_cfg.peer_mac, tmp.peer_mac, 6);
+
+        printf("Config zaladowany z NVS.\n");
+        printf("  tech:     %s\n",
+               radio_cfg.tech == RADIO_TECH_LORA ? "lora" : "espnow");
+        printf("  dir:      %s\n",
+               radio_cfg.dir == RADIO_DIR_TX ? "tx" : "rx");
+        printf("  peer_mac: " MACSTR "\n", MAC2STR(radio_cfg.peer_mac));
+        return 0;
+    }
+
+    printf("Nieznana akcja: '%s'  (dostepne: show  save  load)\n", argv[1]);
+    return 1;
 }
 
 void shell_init(void)
@@ -175,5 +236,12 @@ void console_radio_register(void)
 	    .command = "mymac",
 	    .help    = "Pokaz MAC tego urzadzenia",
 	    .func    = cmd_mymac,
+	}));
+	
+	ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
+    .command = "config",
+    .help    = "Zarzadzaj configiem: config <show|save|load>",
+    .hint    = "<show|save|load>",
+    .func    = cmd_config,
 	}));
 }
