@@ -11,6 +11,8 @@
 #include "esp_netif.h"
 #include "esp_event.h"
 
+extern int rssi;
+
 // Callback wywoływany gdy przyjdzie pakiet ESP-NOW
 typedef void (*espnow_rx_cb_t)(const uint8_t *data, int len);
 

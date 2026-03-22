@@ -11,6 +11,7 @@
 static espnow_rx_cb_t s_rx_cb = NULL;
 static bool s_wifi_initialized;
 
+int rssi = 0;
 // ─── Callbacki ESP-NOW ────────────────────────────────────────
 static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
@@ -19,7 +20,8 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status)
 
 static void on_data_recv(const esp_now_recv_info_t *info,
                          const uint8_t *data, int len)
-{
+{	
+	rssi = info->rx_ctrl->rssi; 
     ESP_LOGD(TAG, "RX %d B od " MACSTR, len, MAC2STR(info->src_addr));
     if (s_rx_cb)
         s_rx_cb(data, len);

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <sys/_intsup.h>
 #include <unistd.h>
 
 #include "esp_log.h"
@@ -14,6 +15,8 @@
 #include "nvs_storage.h"
 
 float current_mA = 0;
+float current_mA_peak = 0;
+
 SSD1306_t dev;
 
 // ===== TASK PWR =====
@@ -45,27 +48,46 @@ void vOledTask(void *pv) {
 				radio_cfg.dir ? "TX" : "RX");
 		ssd1306_display_text(&dev, 4, buf, strlen(buf), false);
 		
+		// RSSI tylko w trybie RX lub w TX mA peak
+        if (radio_cfg.dir == RADIO_DIR_RX) {
+            sprintf(buf, "RSSI: %d dBm", rssi);
+            ssd1306_display_text(&dev, 5, buf, strlen(buf), false);
+        } else {
+			sprintf(buf, "Peak: %.2f mA", current_mA_peak);
+            ssd1306_display_text(&dev, 5, buf, strlen(buf), false); // czyść linię
+        }
+        
 		vTaskDelay(pdMS_TO_TICKS(200));
 	}
 }
 
 // ===== TASK SD =====
 void vLogTask(void *pv) {
-	for (;;) {
-		if (!sd_card_ready){
-			sd_card_init();
-			snprintf(LOG_FILE_NAME, sizeof(LOG_FILE_NAME), "%s/log.txt", MOUNT_POINT);
-			s_example_write_file((const char*)LOG_FILE_NAME, "Measurements:");
-		}
-			
-		char buf[50];
-		if (gps_fix)
-			snprintf(buf, sizeof(buf), "CURR: %.2f LAT: %f LON: %f\n", current_mA, gps_lat, gps_lon);
-		else
-			snprintf(buf, sizeof(buf), "CURR: %.2f\n", current_mA);
+    for (;;) {
+        if (!sd_card_ready) {
+            sd_card_init();
+            snprintf(LOG_FILE_NAME, sizeof(LOG_FILE_NAME), "%s/log.txt", MOUNT_POINT);
+            s_example_write_file((const char*)LOG_FILE_NAME, "Measurements:");
+        }
+
+        char buf[80];
+        const char *tech = radio_cfg.tech == RADIO_TECH_LORA ? "LORA" : "ESPNOW";
+
+        if (radio_cfg.dir == RADIO_DIR_RX) {
+            snprintf(buf, sizeof(buf), "%s RX RSSI:%d%s\n",
+                tech,
+                rssi,
+                gps_fix ? ({static char g[32]; snprintf(g,sizeof(g)," LAT:%.5f LON:%.5f",gps_lat,gps_lon); g;}) : "");
+        } else {
+            snprintf(buf, sizeof(buf), "%s TX CURR:%.2f%s\n",
+                tech,
+                current_mA_peak,
+                gps_fix ? ({static char g[32]; snprintf(g,sizeof(g)," LAT:%.5f LON:%.5f",gps_lat,gps_lon); g;}) : "");
+        }
+
         s_example_append_file((const char*)LOG_FILE_NAME, buf);
         vTaskDelay(pdMS_TO_TICKS(1000));
- 	}
+    }
 }
 
 // ===== TASK LORA =====
@@ -77,6 +99,7 @@ void vRadioTask(void *pv) {
 				// LoRa send
 		        int send_len = sprintf((char *)buf8,"Hello World!!");
 		        lora_send_packet(buf8, send_len);
+		        current_mA_peak = ina219_read_current() * 1000;
 		        vTaskDelay(6000 / portTICK_PERIOD_MS);
 		  	}
 		  	else {
@@ -85,6 +108,7 @@ void vRadioTask(void *pv) {
 					int rxLen = lora_receive_packet(buf8, sizeof(buf8));
 					ESP_LOGI(pcTaskGetName(NULL), "%d byte packet received:[%.*s]", rxLen, rxLen, buf8);
 				}
+				rssi = lora_packet_rssi;
 				vTaskDelay(1); // Avoid WatchDog alerts 
 			}
 		}
@@ -92,6 +116,7 @@ void vRadioTask(void *pv) {
 			if (radio_cfg.dir){
 		        int len = sprintf((char *)buf8, "Hello ESP-NOW!");
                 espnow_send(buf8, len);
+                current_mA_peak = ina219_read_current() * 1000;
                 vTaskDelay(pdMS_TO_TICKS(6000));
 		  	}
 		  	else {
