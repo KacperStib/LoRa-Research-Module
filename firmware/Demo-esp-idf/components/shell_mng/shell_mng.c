@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include "dev_config.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_console.h"
@@ -107,7 +108,10 @@ static int cmd_mac(int argc, char **argv)
     }
 
     memcpy((void*)radio_cfg.peer_mac, mac, 6);
-    espnow_set_peer(mac);
+    
+    if (radio_cfg.tech == RADIO_TECH_ESPNOW)
+    	espnow_set_peer(mac);
+    	
     printf("MAC ustawiony: " MACSTR "\n", MAC2STR(mac));
     return 0;
 }
@@ -142,11 +146,8 @@ static int cmd_config(int argc, char **argv)
 
     // ── save ──────────────────────────────────────────────────
     if (strcmp(argv[1], "save") == 0) {
-        radio_config_t snap = {
-            .tech = radio_cfg.tech,
-            .dir  = radio_cfg.dir,
-        };
-        memcpy(snap.peer_mac, (const void *)radio_cfg.peer_mac, 6);
+        radio_config_t snap;
+		memcpy(&snap, (const void *)&radio_cfg, sizeof(snap));
 
         if (nvs_cfg_save(&snap) == ESP_OK)
             printf("Config zapisany do NVS.\n");
@@ -162,9 +163,8 @@ static int cmd_config(int argc, char **argv)
             printf("Blad odczytu z NVS (brak zapisu lub blad flash).\n");
             return 1;
         }
-        radio_cfg.tech = tmp.tech;
-        radio_cfg.dir  = tmp.dir;
-        memcpy((void *)radio_cfg.peer_mac, tmp.peer_mac, 6);
+        memcpy((void *)&radio_cfg, &tmp, sizeof(radio_config_t));
+		radio_apply_config();
 
         printf("Config zaladowany z NVS.\n");
         printf("  tech:     %s\n",
@@ -177,6 +177,56 @@ static int cmd_config(int argc, char **argv)
 
     printf("Nieznana akcja: '%s'  (dostepne: show  save  load)\n", argv[1]);
     return 1;
+}
+
+// ─── Handler komendy "reset" ──────────────────────────────────
+static int cmd_reset(int argc, char **argv)
+{
+    printf("Restartuję...\n");
+    vTaskDelay(pdMS_TO_TICKS(100));
+    esp_restart();
+    return 0;
+}
+
+// ─── Handler komendy "lora" ──────────────────────────────────
+static int cmd_lora(int argc, char **argv)
+{
+    if (argc < 3) {
+        printf("=== Konfiguracja LoRa ===\n");
+        printf("  sf:  %d  (7-12)\n",  radio_cfg.lora.sf);
+        printf("  bw:  %d  (0-9)\n",   radio_cfg.lora.bw);
+        printf("  cr:  %d  (1-4)\n",   radio_cfg.lora.cr);
+        printf("  pwr: %d  (2-17)\n",  radio_cfg.lora.pwr);
+        printf("Uzycie: lora <sf|bw|cr|pwr> <wartosc>\n");
+        return 0;
+    }
+
+    int val = atoi(argv[2]);
+
+    if (strcmp(argv[1], "sf") == 0) {
+        if (val < 7 || val > 12) { printf("SF: 7-12\n"); return 1; }
+        radio_cfg.lora.sf = val;
+    }
+    else if (strcmp(argv[1], "bw") == 0) {
+        if (val < 0 || val > 9)  { printf("BW: 0-9\n");  return 1; }
+        radio_cfg.lora.bw = val;
+    }
+    else if (strcmp(argv[1], "cr") == 0) {
+        if (val < 1 || val > 4)  { printf("CR: 1-4\n");  return 1; }
+        radio_cfg.lora.cr = val;
+    }
+    else if (strcmp(argv[1], "pwr") == 0) {
+        if (val < 2 || val > 17) { printf("PWR: 2-17 dBm\n"); return 1; }
+        radio_cfg.lora.pwr = val;
+    }
+    else {
+        printf("Nieznany parametr: '%s'\n", argv[1]);
+        return 1;
+    }
+
+    radio_apply_config();
+    printf("OK\n");
+    return 0;
 }
 
 void shell_init(void)
@@ -239,9 +289,22 @@ void console_radio_register(void)
 	}));
 	
 	ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
-    .command = "config",
-    .help    = "Zarzadzaj configiem: config <show|save|load>",
-    .hint    = "<show|save|load>",
-    .func    = cmd_config,
+	    .command = "config",
+	    .help    = "Zarzadzaj configiem: config <show|save|load>",
+	    .hint    = "<show|save|load>",
+	    .func    = cmd_config,
+	}));
+	
+	ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
+	    .command = "reset",
+	    .help    = "Zresetuj urzadzenie",
+	    .func    = cmd_reset,
+	}));
+	
+	ESP_ERROR_CHECK(esp_console_cmd_register(&(esp_console_cmd_t){
+	    .command = "lora",
+	    .help    = "Parametry LoRa: lora <sf|bw|cr|pwr> <wartosc>",
+	    .hint    = "<sf|bw|cr|pwr> <wartosc>",
+	    .func    = cmd_lora,
 	}));
 }

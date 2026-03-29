@@ -14,6 +14,9 @@
 
 #define TAG_PWR "PWR"
 
+extern float current_mA;
+extern float current_mA_peak;
+
 extern uint8_t ina_range;
 extern uint8_t ina_gain;
 extern uint8_t ina_b_res; 
@@ -26,5 +29,7 @@ esp_err_t ina219_power_on(float shuntVAL, float iMAX);
 float ina219_read_voltage();
 float ina219_read_current();
 float ina219_read_power();
+
+float ina219_find_peak();
 
 #endif

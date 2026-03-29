@@ -4,6 +4,8 @@
 char LOG_FILE_NAME[64] = {0,};
 bool sd_card_ready = 0;
 
+QueueHandle_t xLogQueue = NULL;
+
 esp_err_t sd_card_init()
 {	
 	sdmmc_card_t *card;
@@ -98,4 +100,33 @@ bool file_exists(const char *path) {
     }
     fclose(fd);
     return true;  // File exists
+}
+
+// Wysylka do kolejki do logowania na SD
+esp_err_t sd_log_event (bool tech, bool is_tx, float current_mA_peak, int rssi, bool gps_fix, float gps_lat, float gps_lon){
+	
+	log_event_t ev = {
+		    .has_gps  = gps_fix,
+		    .lat      = gps_lat,
+		    .lon      = gps_lon,
+		};
+		
+	if(is_tx){
+		// Po udanym TX:
+		ev.is_tx    = true,
+		ev.peak_mA  = current_mA_peak,
+		strncpy(ev.tech, tech ? "LORA" : "ESPNOW", sizeof(ev.tech));
+	}
+	else {
+		// Po udanym RX (lora_received() == true lub espnow callback):
+		ev.is_tx   = false,
+		ev.rssi    = rssi,
+		strncpy(ev.tech, tech ? "LORA" : "ESPNOW", sizeof(ev.tech));
+	}
+	
+	// Wysylka do kolejki
+	if (xQueueSend(xLogQueue, &ev, 0) != pdTRUE)
+        return ESP_ERR_NO_MEM;   // kolejka pełna
+        
+    return ESP_OK;
 }

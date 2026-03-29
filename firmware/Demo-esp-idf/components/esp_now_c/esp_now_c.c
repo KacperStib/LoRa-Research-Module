@@ -22,6 +22,8 @@ static void on_data_recv(const esp_now_recv_info_t *info,
                          const uint8_t *data, int len)
 {	
 	rssi = info->rx_ctrl->rssi; 
+	sd_log_event (false, false, 0, rssi, gps_fix, gps_lat, gps_lon);
+	
     ESP_LOGD(TAG, "RX %d B od " MACSTR, len, MAC2STR(info->src_addr));
     if (s_rx_cb)
         s_rx_cb(data, len);
@@ -47,7 +49,7 @@ esp_err_t espnow_init(espnow_rx_cb_t rx_callback)
     }
     ESP_ERROR_CHECK(ret);
 	*/
-    // Te dwie linijki były w example a u nas ich nie było!
+    // Te dwie linijki były w example !
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 

@@ -573,7 +573,7 @@ lora_send_packet(uint8_t *buf, int size)
       if ((irq & IRQ_TX_DONE_MASK) == IRQ_TX_DONE_MASK) break;
       loop++;
       if (loop == max_retry) break;
-      vTaskDelay(2);
+      //vTaskDelay(2);
    }
    if (loop == max_retry) {
       _send_packet_lost++;

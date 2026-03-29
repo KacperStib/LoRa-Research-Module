@@ -11,6 +11,9 @@
 #include "esp_netif.h"
 #include "esp_event.h"
 
+#include "sd_card.h"
+#include "gps.h"
+
 extern int rssi;
 
 // Callback wywoływany gdy przyjdzie pakiet ESP-NOW

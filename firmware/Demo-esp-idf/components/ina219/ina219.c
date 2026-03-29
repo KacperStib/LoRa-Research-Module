@@ -1,5 +1,9 @@
 #include "ina219.h"
 
+// Globalne
+float current_mA = 0;
+float current_mA_peak = 0;
+
 // Parametry do konfiguracji - podstawowe parametry
 uint8_t ina_range = 0b1; // 32 V
 uint8_t ina_gain = 0b11; // 320 mV
@@ -72,4 +76,25 @@ float ina219_read_power(){
 	power = power * powerLSB;
 	ESP_LOGD(TAG_PWR,"POWER: %.2f", power);
 	return power;
+}
+
+// Znajdz pik pradowy
+// Zwiekoszono i2c z 100khz na 400khz
+float ina219_find_peak(){
+	float peak = 0, sample;
+	//TickType_t t_start=xTaskGetTickCount();
+	//TickType_t t_peak  = t_start;
+	TickType_t t_end = xTaskGetTickCount() + pdMS_TO_TICKS(100);
+	
+	while (xTaskGetTickCount() < t_end) {
+	    sample = ina219_read_current();
+	    if (sample > peak){ 
+			peak = sample; 
+			//t_peak = xTaskGetTickCount();
+			}
+	    vTaskDelay(pdMS_TO_TICKS(1));
+	}
+	//TickType_t peak_at = (t_peak - t_start) * portTICK_PERIOD_MS;
+    //ESP_LOGI(TAG_PWR, "Peak: %.2f mA, wystapil po: %lu ms", peak * 1000, peak_at);
+	return peak;
 }
